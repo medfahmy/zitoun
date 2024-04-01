@@ -3,57 +3,124 @@ use std::fs::File;
 use std::io::Write;
 use std::process::exit;
 
-const WIDTH: usize = 800;
+const WIDTH:  usize = 800;
 const HEIGHT: usize = 800;
+
+// 0xAARRBBGG
+const GRAY:  u32 = 0xff202020;
+const RED:   u32 = 0xffff2020;
+const GREEN: u32 = 0xff2020ff;
+const BLUE:  u32 = 0xff20ff20;
 
 fn main() {
     let mut pixels = [0; WIDTH * HEIGHT];
 
+    // chess(&mut pixels);
     // checker(&mut pixels);
-    circle(&mut pixels);
+    // circle(&mut pixels);
+    draw_line(&mut pixels, Point(0, 0), Point(100, 100));
+    draw_line(&mut pixels, Point(1, 0), Point(101, 100));
+    save_to_ppm(&pixels, "line.ppm");
+}
+
+struct Point(usize, usize);
+
+fn draw_line(pixels: &mut [u32], p: Point, r: Point) {
+
+    // y = a * x + b
+
+    // p.1 = a * p.0 + b
+    // r.1 = a * r.0 + b
+    // (p.1 - r.1) = a * (p.0 - r.0)
+
+    let a = (p.1 as i64 - r.1 as i64)  / (p.0 as i64 - r.0 as i64);
+    let b = p.1 as i64 - a * p.0 as i64; 
+
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            if x as i64 * a + b == y as i64 {
+                if (p.0 < x && x < r.0 && p.1 < y && y < r.1) || (p.0 > x && x > r.0 && p.1 > y && y > r.1) {
+                    pixels[y * WIDTH + x] = RED;
+                }
+            }
+        }
+    }
 }
 
 fn circle(pixels: &mut [u32]) {
-    fill(pixels, 0xff202020);
-    fill_circle(
-        pixels,
-        WIDTH,
-        HEIGHT,
-        400,
-        400,
-        200,
-        0xff2020ff,
-    );
+    fill(pixels, GRAY);
+
+    let cols = 8;
+    let rows = 8;
+    let cell_width = WIDTH / rows;
+    let cell_height = HEIGHT / cols;
+
+    for y in 0..cols {
+        for x in 0..rows {
+            let t = (x as f32 / rows as f32 + y as f32 / cols as f32) / 2.0;
+            let r = cell_height.min(cell_width) / 2;
+            let r = lerp(r / 4, r, t);
+
+            fill_circle(
+                pixels,
+                WIDTH,
+                HEIGHT,
+                x * cell_width + cell_width / 2,
+                y * cell_height + cell_height / 2,
+                r as usize,
+                if (x + y) % 2 == 0 { RED } else { GREEN },
+            );
+        }
+    }
+
     save_to_ppm(&pixels, "circle.ppm");
+}
+
+fn lerp(min: usize, max: usize, t: f32) -> f32 {
+    min as f32 + (max - min) as f32 * t
 }
 
 fn fill_circle(
     pixels: &mut [u32],
     width: usize,
     height: usize,
-    cx: i64,
-    cy: i64,
-    r: i64,
+    cx: usize,
+    cy: usize,
+    r: usize,
     color: u32,
 ) {
-    let x1 = cx - r;
-    let x2 = cx + r;
-    let y1 = cy - r;
-    let y2 = cy + r;
+    let x1 = if cx > r { cx - r } else { 0 };
+    let x2 = if cx + r < width { cx + r } else { width };
+    let y1 = if cy > r { cy - r } else { 0 };
+    let y2 = if cy + r < height { cy + r } else { height };
 
     for y in y1..y2 {
-        if y < height as i64 {
-            for x in x1..x2 {
-                if x < width as i64 {
-                    let dx = if x > cx { x - cx } else { cx - x };
-                    let dy = if y > cy { y - cy } else { cy - y };
-                    if (dx * dx + dy * dy) <= r.pow(2) {
-                        pixels[y as usize * width + x as usize] = color;
-                    }
-                }
+        for x in x1..x2 {
+            let dx = if x > cx { x - cx } else { cx - x };
+            let dy = if y > cy { y - cy } else { cy - y };
+
+            if (dx * dx + dy * dy) <= r.pow(2) {
+                pixels[y * width + x] = color;
             }
         }
     }
+}
+
+fn chess(pixels: &mut [u32]) {
+    let cols = 8;
+    let rows = 8;
+    let cell_height = HEIGHT / cols;
+    let cell_width = WIDTH / rows;
+
+    for y in 0..cols {
+        for x in 0..rows {
+            fill_rect(pixels, WIDTH, HEIGHT, x * cell_width, y * cell_height, cell_width, cell_height, 
+                if (x + y) % 2 == 0 { 0xff202020 } else { 0xffefefef }
+            )
+        }
+    }
+
+    save_to_ppm(pixels, "chess.ppm");
 }
 
 fn checker(pixels: &mut [u32]) {
@@ -126,7 +193,6 @@ fn error(e: impl Error) {
 
 fn save_to_ppm(pixels: &[u32], path: &str) {
     let mut file = File::create(path).map_err(error).unwrap();
-    let mut output: [u8; WIDTH * HEIGHT * 3] = [0; WIDTH * HEIGHT * 3];
 
     writeln!(file, "P6\n{} {} 255\n", WIDTH, HEIGHT)
         .map_err(error)
@@ -135,16 +201,15 @@ fn save_to_ppm(pixels: &[u32], path: &str) {
     for i in 0..WIDTH * HEIGHT {
         let pixel = pixels[i];
 
-        // 0xAABBGGRR
-        let r = ((pixel >> (8 * 0)) & 0xFF).try_into().unwrap();
-        let g = ((pixel >> (8 * 1)) & 0xFF).try_into().unwrap();
-        let b = ((pixel >> (8 * 2)) & 0xFF).try_into().unwrap();
+        let bytes: [u8; 3] = [
+            ((pixel >> (8 * 0)) & 0xFF) as u8,
+            ((pixel >> (8 * 1)) & 0xFF) as u8,
+            ((pixel >> (8 * 2)) & 0xFF) as u8,
+        ];
 
-        output[i * 3] = r;
-        output[i * 3 + 1] = g;
-        output[i * 3 + 2] = b;
+
+        file.write(&bytes).map_err(error).unwrap();
     }
 
-    file.write_all(&output).map_err(error).unwrap();
     println!("generated '{}'", path);
 }
