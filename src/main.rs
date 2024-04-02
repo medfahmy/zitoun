@@ -5,37 +5,83 @@ use std::fs::File;
 use std::io::Write;
 use std::process::exit;
 
-const WIDTH:  usize = 800;
+const WIDTH: usize = 800;
 const HEIGHT: usize = 800;
 
-// 0xAARRBBGG
-
+#[derive(Debug, Clone, Copy)]
 struct Point(usize, usize);
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 struct Color(u32);
 
+// 0xAARRBBGG
 const WHITE: Color = Color(0xffffffff);
 const BLACK: Color = Color(0xff000000);
-const GRAY:  Color = Color(0xff202020);
-const RED:   Color = Color(0xffff2020);
+const GRAY: Color = Color(0xff202020);
+const RED: Color = Color(0xffff2020);
 const GREEN: Color = Color(0xff2020ff);
-const BLUE:  Color = Color(0xff20ff20);
+const BLUE: Color = Color(0xff20ff20);
 
 fn main() {
     let mut pixels = [Color(0); WIDTH * HEIGHT];
+
+    let tri = Triangle {
+        a: Point(WIDTH / 8, HEIGHT / 8),
+        b: Point(WIDTH / 8, HEIGHT / 2),
+        c: Point(WIDTH / 8 * 7, HEIGHT / 8 * 7),
+    };
+
+    let r = 50;
+
+    fill_circle(&mut pixels, WIDTH, HEIGHT, tri.a, r, RED);
+    fill_circle(&mut pixels, WIDTH, HEIGHT, tri.b, r, GREEN);
+    fill_circle(&mut pixels, WIDTH, HEIGHT, tri.c, r, BLUE);
+
+    fill_triangle(&mut pixels, tri, WHITE);
+
+    save_to_ppm(&mut pixels, "triangle.ppm");
 
     // chess(&mut pixels);
     // checker(&mut pixels);
     // circle(&mut pixels);
 
-    draw_line(&mut pixels, Point(0, 0), Point(WIDTH, HEIGHT), RED);
-    draw_line(&mut pixels, Point(0, 0), Point(WIDTH, 2 * HEIGHT), BLUE);
-    draw_line(&mut pixels, Point(0, 0), Point(2 * WIDTH, HEIGHT), GREEN);
+    // draw_line(&mut pixels, Point(0, 0), Point(WIDTH, HEIGHT), RED);
+    // draw_line(&mut pixels, Point(0, 0), Point(WIDTH, 2 * HEIGHT), BLUE);
+    // draw_line(&mut pixels, Point(0, 0), Point(2 * WIDTH, HEIGHT), GREEN);
 
-    save_to_ppm(&pixels, "line.ppm");
+    // save_to_ppm(&pixels, "line.ppm");
 }
 
+#[derive(Debug)]
+struct Triangle {
+    a: Point,
+    b: Point,
+    c: Point,
+}
+
+fn fill_triangle(pixels: &mut [Color], tri: Triangle, color: Color) {
+    let p0x = tri.a.0 as f32;
+    let p0y = tri.a.1 as f32;
+    let p1x = tri.b.0 as f32;
+    let p1y = tri.b.1 as f32;
+    let p2x = tri.c.0 as f32;
+    let p2y = tri.c.1 as f32;
+
+    let area = 0.5 * (-p1y * p2x + p0y * (-p1x + p2x) + p0x * (p1y - p2y) + p1x * p2y);
+
+    for y in 0..HEIGHT {
+        for x in 0..WIDTH {
+            let s = 1.0 / (2.0 * area)
+                * (p0y * p2x - p0x * p2y + (p2y - p0y) * x as f32 + (p0x - p2x) * y as f32);
+            let t = 1.0 / (2.0 * area)
+                * (p0x * p1y - p0y * p1x + (p0y - p1y) * x as f32 + (p1x - p0x) * y as f32);
+
+            if s >= 0.0 && t >= 0.0 && s + t <= 1.0 {
+                pixels[y * WIDTH + x] = color;
+            }
+        }
+    }
+}
 
 fn draw_line(pixels: &mut [Color], p: Point, r: Point, color: Color) {
     let dx = (r.0 as f32 - p.0 as f32) as f32;
@@ -86,8 +132,10 @@ fn circle(pixels: &mut [Color]) {
                 pixels,
                 WIDTH,
                 HEIGHT,
-                x * cell_width + cell_width / 2,
-                y * cell_height + cell_height / 2,
+                Point(
+                    x * cell_width + cell_width / 2,
+                    y * cell_height + cell_height / 2,
+                ),
                 r as usize,
                 if (x + y) % 2 == 0 { RED } else { GREEN },
             );
@@ -105,20 +153,35 @@ fn fill_circle(
     pixels: &mut [Color],
     width: usize,
     height: usize,
-    cx: usize,
-    cy: usize,
+    center: Point,
     r: usize,
     color: Color,
 ) {
-    let x1 = if cx > r { cx - r } else { 0 };
-    let x2 = if cx + r < width { cx + r } else { width };
-    let y1 = if cy > r { cy - r } else { 0 };
-    let y2 = if cy + r < height { cy + r } else { height };
+    let x1 = if center.0 > r { center.0 - r } else { 0 };
+    let x2 = if center.0 + r < width {
+        center.0 + r
+    } else {
+        width
+    };
+    let y1 = if center.1 > r { center.1 - r } else { 0 };
+    let y2 = if center.1 + r < height {
+        center.1 + r
+    } else {
+        height
+    };
 
     for y in y1..y2 {
         for x in x1..x2 {
-            let dx = if x > cx { x - cx } else { cx - x };
-            let dy = if y > cy { y - cy } else { cy - y };
+            let dx = if x > center.0 {
+                x - center.0
+            } else {
+                center.0 - x
+            };
+            let dy = if y > center.1 {
+                y - center.1
+            } else {
+                center.1 - y
+            };
 
             if (dx * dx + dy * dy) <= r.pow(2) {
                 pixels[y * width + x] = color;
@@ -135,8 +198,15 @@ fn chess(pixels: &mut [Color]) {
 
     for y in 0..cols {
         for x in 0..rows {
-            fill_rect(pixels, WIDTH, HEIGHT, x * cell_width, y * cell_height, cell_width, cell_height, 
-                if (x + y) % 2 == 0 { BLACK } else { WHITE }
+            fill_rect(
+                pixels,
+                WIDTH,
+                HEIGHT,
+                x * cell_width,
+                y * cell_height,
+                cell_width,
+                cell_height,
+                if (x + y) % 2 == 0 { BLACK } else { WHITE },
             )
         }
     }
@@ -154,11 +224,7 @@ fn checker(pixels: &mut [Color]) {
 
     for y in 0..rows {
         for x in 0..cols {
-            let color = if (x + y) % 2 == 0 {
-                RED
-            } else {
-                GRAY
-            };
+            let color = if (x + y) % 2 == 0 { RED } else { GRAY };
 
             fill_rect(
                 pixels,
@@ -227,7 +293,6 @@ fn save_to_ppm(pixels: &[Color], path: &str) {
             ((pixel.0 >> (8 * 1)) & 0xFF) as u8,
             ((pixel.0 >> (8 * 2)) & 0xFF) as u8,
         ];
-
 
         file.write(&bytes).map_err(error).unwrap();
     }
