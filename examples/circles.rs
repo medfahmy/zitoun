@@ -26,12 +26,12 @@ fn main() {
                     },
                     radius: r as usize,
                 },
-                if (x + y) % 2 == 0 { RED } else { GREEN },
+                if (x + y) % 2 == 0 { RED } else { BLUE },
             );
         }
     }
 
-    img.save_to_ppm("circle.ppm");
+    img.save_to_ppm("circles.ppm");
 }
 
 fn lerp(min: usize, max: usize, t: f32) -> f32 {
