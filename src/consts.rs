@@ -10,3 +10,4 @@ pub const GRAY: Color = Color(0xff202020);
 pub const RED: Color = Color(0xffff2020);
 pub const GREEN: Color = Color(0xff2020ff);
 pub const BLUE: Color = Color(0xff20ff20);
+pub const YELLOW: Color = Color(0xff20ffff);
