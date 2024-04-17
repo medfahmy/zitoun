@@ -139,8 +139,6 @@ impl Img {
             0
         };
 
-        // let x1: i64 = circle.center.
-
         let x2 = if circle.center.x + circle.radius < self.width {
             circle.center.x + circle.radius
         } else {
