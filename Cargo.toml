@@ -1,8 +1,8 @@
 [workspace]
 members = [ 
-    "rasterizer",
-    "render",
-    "wasm",
+    "tga",
+    # "render",
+    # "wasm",
 ]
 resolver = "2"
 
