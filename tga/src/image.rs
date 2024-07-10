@@ -26,9 +26,9 @@ impl From<Vec<u8>> for Header {
 }
 
 pub struct Image<T: Color> where {
+    buffer: Vec<T>,
     width: u16,
     height: u16,
-    buffer: Vec<T>,
 }
 
 impl<T: Color> Image<T> {
